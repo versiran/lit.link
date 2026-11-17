@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>個人自介 | 可視化編輯版</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            min-height: 100vh;
+            background-image: url('https://images.unsplash.com/photo-1513002749550-c59d786b8e6c?q=80&w=2574&auto=format&fit=crop');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            display: flex;
+            justify-content: center;
+            color: #333;
+            padding: 60px 20px 40px;
+            transition: background-image 0.3s ease;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 140, 200, 0.15);
+            z-index: -1;
+        }
+
+        /* 頂部編輯工具列 */
+        .editor-toolbar {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            display: flex;
+            gap: 10px;
+            z-index: 1000;
+        }
+
+        .tool-btn {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(0,0,0,0.1);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #1e293b;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .tool-btn:hover {
+            background: #fff;
+            transform: translateY(-2px);
+        }
+
+        .tool-btn.active {
+            background: #0284c7;
+            color: #fff;
+        }
+
+        /* 編輯面板 (預設隱藏) */
+        .edit-controls {
+            display: none;
+            width: 100%;
+            max-width: 480px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(12px);
+            padding: 16px;
+            border-radius: 16px;
+            margin-bottom: 24px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            text-align: left;
+            border: 2px dashed #0284c7;
+        }
+
+        body.is-editing .edit-controls {
+            display: block;
+        }
+
+        .control-group {
+            margin-bottom: 12px;
+        }
+
+        .control-group label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #475569;
+            margin-bottom: 4px;
+        }
+
+        .control-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        input[type="text"], select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-family: inherit;
+        }
+
+        .upload-btn {
+            background: #e0f2fe;
+            color: #0284c7;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+            font-size: 0.85rem;
+        }
+
+        .upload-btn:hover {
+            background: #bae6fd;
+        }
+
+        /* 主要內容容器 */
+        .container {
+            width: 100%;
+            max-width: 480px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        /* 網址標籤 */
+        .url-badge {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(8px);
+            padding: 6px 16px;
+            border-radius: 20px;
+            color: #fff;
+            font-size: 0.85rem;
+            margin-bottom: 24px;
+            letter-spacing: 0.5px;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+        }
+
+        /* 頭像區塊 */
+        .avatar-wrapper {
+            position: relative;
+            margin-bottom: 16px;
+            border-radius: 50%;
+        }
+
+        .avatar {
+            width: 115px;
+            height: 115px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 4px solid rgba(255, 255, 255, 0.85);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+            background-color: #fff;
+            display: block;
+        }
+
+        .avatar-edit-overlay {
+            display: none;
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 50%;
+            color: #fff;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            cursor: pointer;
+            border: 4px solid #0284c7;
+        }
+
+        body.is-editing .avatar-edit-overlay {
+            display: flex;
+        }
+
+        /* 可編輯文字提示框 */
+        body.is-editing [contenteditable="true"] {
+            outline: 2px dashed rgba(255, 255, 255, 0.8);
+            background: rgba(0, 0, 0, 0.15);
+            border-radius: 6px;
+            padding: 2px 8px;
+            cursor: text;
+        }
+
+        body.is-editing .link-card [contenteditable="true"] {
+            outline: 1px dashed #0284c7;
+            background: #f0f9ff;
+        }
+
+        .profile-name {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #ffffff;
+            text-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+            margin-bottom: 8px;
+        }
+
+        .profile-bio {
+            font-size: 0.95rem;
+            color: #ffffff;
+            line-height: 1.6;
+            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+            margin-bottom: 20px;
+            max-width: 90%;
+        }
+
+        /* 社群圖示列 */
+        .social-icons {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 14px;
+            margin-bottom: 32px;
+        }
+
+        .social-item {
+            position: relative;
+        }
+
+        .social-icons a {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.85);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            text-decoration: none;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease, background 0.2s ease;
+        }
+
+        .social-icons a:hover {
+            transform: translateY(-3px);
+            background: #ffffff;
+        }
+
+        /* 連結卡片區塊 */
+        .links-section {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .link-card-wrapper {
+            position: relative;
+        }
+
+        .link-card {
+            display: flex;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            padding: 14px 20px;
+            border-radius: 16px;
+            text-decoration: none;
+            color: #333;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            transition: all 0.25s ease;
+        }
+
+        body:not(.is-editing) .link-card:hover {
+            transform: translateY(-3px) scale(1.01);
+            background: rgba(255, 255, 255, 0.98);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+        }
+
+        .link-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: #e0f2fe;
+            color: #0284c7;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            margin-right: 16px;
+            flex-shrink: 0;
+        }
+
+        .link-text {
+            text-align: left;
+            flex-grow: 1;
+        }
+
+        .link-title {
+            font-weight: 700;
+            font-size: 1rem;
+            color: #1e293b;
+            margin-bottom: 2px;
+        }
+
+        .link-subtitle {
+            font-size: 0.8rem;
+            color: #64748b;
+        }
+
+        /* 編輯模式下的卡片操作按鈕 */
+        .card-edit-actions {
+            display: none;
+            margin-top: 6px;
+            gap: 6px;
+            justify-content: flex-end;
+        }
+
+        body.is-editing .card-edit-actions {
+            display: flex;
+        }
+
+        .mini-btn {
+            font-size: 0.75rem;
+            padding: 4px 10px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-weight: 700;
+            background: rgba(255,255,255,0.9);
+            color: #334155;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .mini-btn.danger {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .add-card-btn {
+            display: none;
+            width: 100%;
+            padding: 12px;
+            border-radius: 16px;
+            border: 2px dashed rgba(255,255,255,0.8);
+            background: rgba(255,255,255,0.3);
+            color: #fff;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 10px;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+
+        body.is-editing .add-card-btn {
+            display: block;
+        }
+
+        footer {
+            margin-top: 40px;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.85);
+            text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 隱藏的檔案上傳器 -->
+    <input type="file" id="avatarInput" accept="image/*" style="display: none;">
+    <input type="file" id="bgInput" accept="image/*" style="display: none;">
+
+    <!-- 右上角工具列 -->
+    <div class="editor-toolbar">
+        <button class="tool-btn" id="toggleEditBtn" onclick="toggleEditMode()">
+            <i class="fa-solid fa-pen-to-square"></i> <span>開啟編輯</span>
+        </button>
+        <button class="tool-btn" id="exportBtn" onclick="exportHTML()" style="display: none;">
+            <i class="fa-solid fa-download"></i> 匯出網頁
+        </button>
+    </div>
+
+    <div class="container">
+        <!-- 編輯控制面板 -->
+        <div class="edit-controls">
+            <div class="control-group">
+                <label>🖼️ 更換背景圖片（上傳本地圖片或貼上網址）</label>
+                <div class="control-row">
+                    <input type="text" id="bgUrlInput" placeholder="貼上圖片網址..." onchange="updateBgFromUrl(this.value)">
+                    <button class="upload-btn" onclick="document.getElementById('bgInput').click()">選擇圖片</button>
+                </div>
+            </div>
+            <div class="control-group" style="margin-bottom: 0; display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 0.78rem; color: #64748b;">💡 提示：直接點擊下方文字即可修改內容</span>
+                <button class="mini-btn danger" onclick="resetAll()">恢復預設值</button>
+            </div>
+        </div>
+
+        <!-- 頂部網址列 -->
+        <div class="url-badge">
+            <i class="fa-solid fa-link"></i> <span id="badgeText">lit.link/versiran</span>
+        </div>
+
+        <!-- 頭像 -->
+        <div class="avatar-wrapper">
+            <img src="https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=500&auto=format&fit=crop" alt="頭像" class="avatar" id="avatarImg">
+            <div class="avatar-edit-overlay" onclick="document.getElementById('avatarInput').click()">
+                <i class="fa-solid fa-camera" style="font-size: 1.4rem; margin-bottom: 4px;"></i>
+                <span>更換頭像</span>
+            </div>
+        </div>
+
+        <!-- 名稱與自介文字 -->
+        <h1 class="profile-name" id="profileName">維瑟嵐</h1>
+        <p class="profile-bio" id="profileBio">
+            歡迎來到我的個人小天地 ✨<br>
+            喜歡繪圖、遊戲與創作，歡迎透過下方連結認識我！
+        </p>
+
+        <!-- 社群媒體快捷按鈕 -->
+        <div class="social-icons" id="socialIcons">
+            <!-- 由 JS 動態渲染 -->
+        </div>
+
+        <!-- 連結卡片列表 -->
+        <div class="links-section" id="linksSection">
+            <!-- 由 JS 動態渲染 -->
+        </div>
+
+        <button class="add-card-btn" onclick="addNewCard()">
+            <i class="fa-solid fa-plus"></i> 新增連結按鈕
+        </button>
+
+        <footer id="footerText">
+            © 2026 維瑟嵐. All Rights Reserved.
+        </footer>
+    </div>
+
+    <script>
+        let isEditing = false;
+
+        // 預設資料結構
+        const defaultData = {
+            bgImage: 'https://images.unsplash.com/photo-1513002749550-c59d786b8e6c?q=80&w=2574&auto=format&fit=crop',
+            avatar: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=500&auto=format&fit=crop',
+            badge: 'lit.link/versiran',
+            name: '維瑟嵐',
+            bio: '歡迎來到我的個人小天地 ✨<br>喜歡繪圖、遊戲與創作，歡迎透過下方連結認識我！',
+            footer: '© 2026 維瑟嵐. All Rights Reserved.',
+            socials: [
+                { name: 'Instagram', icon: 'fa-brands fa-instagram', color: '#E1306C', url: 'https://instagram.com' },
+                { name: 'X (Twitter)', icon: 'fa-brands fa-x-twitter', color: '#000000', url: 'https://x.com' },
+                { name: 'YouTube', icon: 'fa-brands fa-youtube', color: '#FF0000', url: 'https://youtube.com' },
+                { name: 'TikTok', icon: 'fa-brands fa-tiktok', color: '#000000', url: 'https://tiktok.com' },
+                { name: 'Discord', icon: 'fa-brands fa-discord', color: '#5865F2', url: 'https://discord.com' }
+            ],
+            links: [
+                { title: '個人作品集 / 委託價目表', subtitle: '查看我的最新插畫與委託狀態', url: '#', icon: 'fa-solid fa-palette', bg: '#e0f2fe', color: '#0284c7' },
+                { title: 'HoYoLAB 遊戲主頁', subtitle: '原神 / 星穹鐵道 歡迎加好友一起玩！', url: '#', icon: 'fa-solid fa-gamepad', bg: '#fce7f3', color: '#db2777' },
+                { title: '匿名提問箱', subtitle: '有任何想說的話或問題都可以丟進來', url: '#', icon: 'fa-solid fa-envelope-open-text', bg: '#fef3c7', color: '#d97706' }
+            ]
+        };
+
+        // 讀取本機儲存資料
+        let pageData = JSON.parse(localStorage.getItem('customBioData')) || JSON.parse(JSON.stringify(defaultData));
+
+        function saveData() {
+            pageData.badge = document.getElementById('badgeText').innerText;
+            pageData.name = document.getElementById('profileName').innerText;
+            pageData.bio = document.getElementById('profileBio').innerHTML;
+            pageData.footer = document.getElementById('footerText').innerText;
+            localStorage.setItem('customBioData', JSON.stringify(pageData));
+        }
+
+        function renderPage() {
+            document.body.style.backgroundImage = `url('${pageData.bgImage}')`;
+            document.getElementById('avatarImg').src = pageData.avatar;
+            document.getElementById('badgeText').innerText = pageData.badge;
+            document.getElementById('profileName').innerText = pageData.name;
+            document.getElementById('profileBio').innerHTML = pageData.bio;
+            document.getElementById('footerText').innerText = pageData.footer;
+
+            // 渲染社群按鈕
+            const socialContainer = document.getElementById('socialIcons');
+            socialContainer.innerHTML = '';
+            pageData.socials.forEach((soc, index) => {
+                const div = document.createElement('div');
+                div.className = 'social-item';
+                div.innerHTML = `
+                    <a href="${soc.url}" target="_blank" title="${soc.name}" onclick="handleSocialClick(event, ${index})">
+                        <i class="${soc.icon}" style="color: ${soc.color};"></i>
+                    </a>
+                `;
+                socialContainer.appendChild(div);
+            });
+
+            // 渲染連結卡片
+            const linksContainer = document.getElementById('linksSection');
+            linksContainer.innerHTML = '';
+            pageData.links.forEach((link, index) => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'link-card-wrapper';
+                wrapper.innerHTML = `
+                    <a href="${link.url}" target="_blank" class="link-card" onclick="handleCardClick(event)">
+                        <div class="link-icon" style="background: ${link.bg}; color: ${link.color};" onclick="changeCardIcon(event, ${index})" title="編輯模式下點擊可換圖示">
+                            <i class="${link.icon}"></i>
+                        </div>
+                        <div class="link-text">
+                            <div class="link-title" contenteditable="${isEditing}" onblur="updateLinkText(${index}, 'title', this.innerText)">${link.title}</div>
+                            <div class="link-subtitle" contenteditable="${isEditing}" onblur="updateLinkText(${index}, 'subtitle', this.innerText)">${link.subtitle}</div>
+                        </div>
+                        <i class="fa-solid fa-chevron-right" style="color: #cbd5e1;"></i>
+                    </a>
+                    <div class="card-edit-actions">
+                        <button class="mini-btn" onclick="editCardUrl(${index})"><i class="fa-solid fa-link"></i> 設定網址</button>
+                        <button class="mini-btn danger" onclick="deleteCard(${index})"><i class="fa-solid fa-trash"></i> 刪除</button>
+                    </div>
+                `;
+                linksContainer.appendChild(wrapper);
+            });
+
+            // 設定主要文字可編輯狀態
+            ['badgeText', 'profileName', 'profileBio', 'footerText'].forEach(id => {
+                const el = document.getElementById(id);
+                el.contentEditable = isEditing;
+                el.onblur = saveData;
+            });
+        }
+
+        function toggleEditMode() {
+            isEditing = !isEditing;
+            document.body.classList.toggle('is-editing', isEditing);
+            const btn = document.getElementById('toggleEditBtn');
+            const exportBtn = document.getElementById('exportBtn');
+
+            if (isEditing) {
+                btn.classList.add('active');
+                btn.innerHTML = '<i class="fa-solid fa-check"></i> <span>完成編輯</span>';
+                exportBtn.style.display = 'flex';
+            } else {
+                saveData();
+                btn.classList.remove('active');
+                btn.innerHTML = '<i class="fa-solid fa-pen-to-square"></i> <span>開啟編輯</span>';
+                exportBtn.style.display = 'none';
+            }
+            renderPage();
+        }
+
+        // 圖片上傳處理 (轉為 Base64)
+        function handleImageUpload(inputId, callback) {
+            document.getElementById(inputId).addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    callback(event.target.result);
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        handleImageUpload('avatarInput', (base64) => {
+            pageData.avatar = base64;
+            saveData();
+            renderPage();
+        });
+
+        handleImageUpload('bgInput', (base64) => {
+            pageData.bgImage = base64;
+            saveData();
+            renderPage();
+        });
+
+        function updateBgFromUrl(url) {
+            if (url.trim()) {
+                pageData.bgImage = url.trim();
+                saveData();
+                renderPage();
+            }
+        }
+
+        // 編輯模式下攔截點擊跳轉
+        function handleCardClick(e) {
+            if (isEditing) e.preventDefault();
+        }
+
+        function handleSocialClick(e, index) {
+            if (isEditing) {
+                e.preventDefault();
+                const newUrl = prompt(`請輸入 ${pageData.socials[index].name} 的網址（留空可隱藏）：`, pageData.socials[index].url);
+                if (newUrl !== null) {
+                    pageData.socials[index].url = newUrl.trim() || '#';
+                    saveData();
+                    renderPage();
+                }
+            }
+        }
+
+        function updateLinkText(index, field, value) {
+            pageData.links[index][field] = value;
+            saveData();
+        }
+
+        function editCardUrl(index) {
+            const newUrl = prompt('請輸入此按鈕要前往的網址：', pageData.links[index].url);
+            if (newUrl !== null) {
+                pageData.links[index].url = newUrl.trim() || '#';
+                saveData();
+                renderPage();
+            }
+        }
+
+        const iconPresets = [
+            { icon: 'fa-solid fa-palette', bg: '#e0f2fe', color: '#0284c7' },
+            { icon: 'fa-solid fa-gamepad', bg: '#fce7f3', color: '#db2777' },
+            { icon: 'fa-solid fa-envelope-open-text', bg: '#fef3c7', color: '#d97706' },
+            { icon: 'fa-solid fa-star', bg: '#f3e8ff', color: '#9333ea' },
+            { icon: 'fa-solid fa-music', bg: '#dcfce7', color: '#16a34a' },
+            { icon: 'fa-solid fa-heart', bg: '#ffe4e6', color: '#e11d48' }
+        ];
+
+        function changeCardIcon(e, index) {
+            if (!isEditing) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const currentIcon = pageData.links[index].icon;
+            const currentIdx = iconPresets.findIndex(p => p.icon === currentIcon);
+            const nextPreset = iconPresets[(currentIdx + 1) % iconPresets.length];
+            Object.assign(pageData.links[index], nextPreset);
+            saveData();
+            renderPage();
+        }
+
+        function addNewCard() {
+            pageData.links.push({
+                title: '新連結標題',
+                subtitle: '點擊這裡修改說明文字',
+                url: 'https://',
+                icon: 'fa-solid fa-star',
+                bg: '#f3e8ff',
+                color: '#9333ea'
+            });
+            saveData();
+            renderPage();
+        }
+
+        function deleteCard(index) {
+            if (confirm('確定要刪除這個連結嗎？')) {
+                pageData.links.splice(index, 1);
+                saveData();
+                renderPage();
+            }
+        }
+
+        function resetAll() {
+            if (confirm('確定要清除所有修改，恢復成初始畫面嗎？')) {
+                localStorage.removeItem('customBioData');
+                pageData = JSON.parse(JSON.stringify(defaultData));
+                renderPage();
+            }
+        }
+
+        // 匯出包含最新設定的乾淨 HTML 檔案
+        function exportHTML() {
+            saveData();
+            const cloneDoc = document.documentElement.cloneNode(true);
+            cloneDoc.querySelector('body').classList.remove('is-editing');
+            // 將當前資料寫入匯出檔案的預設值中
+            const scripts = cloneDoc.querySelectorAll('script');
+            const mainScript = scripts[scripts.length - 1];
+            mainScript.textContent = mainScript.textContent.replace(
+                /const defaultData = \{[\s\S]*?\};/,
+                `const defaultData = ${JSON.stringify(pageData, null, 4)};`
+            );
+            const blob = new Blob(['<!DOCTYPE html>\n' + cloneDoc.outerHTML], { type: 'text/html;charset=utf-8' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'my-profile.html';
+            a.click();
+        }
+
+        // 初始化頁面
+        renderPage();
+    </script>
+</body>
+</html>
